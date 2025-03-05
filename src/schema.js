@@ -1,4 +1,12 @@
-const { GraphQLObjectType, GraphQLSchema, GraphQLInt, GraphQLString, GraphQLList, GraphQLBoolean } = require("graphql");
+const {
+  GraphQLObjectType,
+  GraphQLSchema,
+  GraphQLInt,
+  GraphQLString,
+  GraphQLList,
+  GraphQLBoolean,
+  GraphQLNonNull
+} = require("graphql");
 const db = require("./db");
 
 // Tipe Status
@@ -77,6 +85,7 @@ const RootQuery = new GraphQLObjectType({
 const Mutation = new GraphQLObjectType({
   name: "Mutation",
   fields: {
+    // add status
     addStatus: {
       type: StatusType,
       args: {
@@ -84,13 +93,33 @@ const Mutation = new GraphQLObjectType({
       },
       resolve(_, { NamaStatus }) {
         return new Promise((resolve, reject) => {
-          db.run("INSERT INTO Status (NamaStatus) VALUES (?)", [NamaStatus], function (err) {
+          db.run(
+            "INSERT INTO Status (NamaStatus) VALUES (?)",
+            [NamaStatus],
+            function (err) {
+              if (err) reject(err);
+              resolve({ ID: this.lastID, NamaStatus });
+            }
+          );
+        });
+      },
+    },
+    // delete status
+    deleteEmergency: {
+      type: GraphQLString,
+      args: {
+        id: { type: GraphQLInt },
+      },
+      resolve(_, { id }) {
+        return new Promise((resolve, reject) => {
+          db.run("DELETE FROM Status WHERE ID = ?", [id], function (err) {
             if (err) reject(err);
-            resolve({ ID: this.lastID, NamaStatus });
+            resolve(`Status with ID ${id} deleted successfully.`);
           });
         });
       },
     },
+    // add emergency
     addEmergency: {
       type: EmergencyType,
       args: {
@@ -98,13 +127,33 @@ const Mutation = new GraphQLObjectType({
       },
       resolve(_, { EmergencyName }) {
         return new Promise((resolve, reject) => {
-          db.run("INSERT INTO Emergency (EmergencyName) VALUES (?)", [EmergencyName], function (err) {
+          db.run(
+            "INSERT INTO Emergency (EmergencyName) VALUES (?)",
+            [EmergencyName],
+            function (err) {
+              if (err) reject(err);
+              resolve({ ID: this.lastID, EmergencyName });
+            }
+          );
+        });
+      },
+    },
+    // delete emergency
+    deleteEmergency: {
+      type: GraphQLString, // Assuming you want to return a confirmation message or ID of the deleted emergency
+      args: {
+        id: { type: GraphQLInt }, // Assuming 'id' is the identifier of the emergency to be deleted
+      },
+      resolve(_, { id }) {
+        return new Promise((resolve, reject) => {
+          db.run("DELETE FROM Emergency WHERE ID = ?", [id], function (err) {
             if (err) reject(err);
-            resolve({ ID: this.lastID, EmergencyName });
+            resolve(`Emergency with ID ${id} deleted successfully.`);
           });
         });
       },
     },
+    // add maintenance request
     addMaintenanceRequest: {
       type: MaintenanceRequestType,
       args: {
@@ -122,7 +171,132 @@ const Mutation = new GraphQLObjectType({
             [Status, Emergency, Title, Description, Date, IsResolved],
             function (err) {
               if (err) reject(err);
-              resolve({ ID: this.lastID, Status, Emergency, Title, Description, Date, IsResolved });
+              resolve({
+                ID: this.lastID,
+                Status,
+                Emergency,
+                Title,
+                Description,
+                Date,
+                IsResolved,
+              });
+            }
+          );
+        });
+      },
+    },
+    // delete maintenance request by id
+    deleteMaintenanceRequest: {
+      type: GraphQLString,
+      args: {
+        id: { type: GraphQLInt },
+      },
+      resolve(_, { id }) {
+        return new Promise((resolve, reject) => {
+          db.run(
+            "DELETE FROM MaintenanceRequest WHERE ID = ?",
+            [id],
+            function (err) {
+              if (err) {
+                reject(err);
+              } else if (this.changes === 0) {
+                resolve(`No maintenance request found with ID ${id}.`);
+              } else {
+                resolve(
+                  `Maintenance request with ID ${id} deleted successfully.`
+                );
+              }
+            }
+          );
+        });
+      },
+    },
+    // delete multiple maintenance id
+    deleteMultipleMaintenanceRequests: {
+      type: GraphQLString, // Returns a success message
+      args: {
+        ids: { type: new GraphQLList(GraphQLInt) }, // Accepts an array of IDs
+      },
+      resolve(_, { ids }) {
+        return new Promise((resolve, reject) => {
+          if (!ids || ids.length === 0) {
+            return reject(new Error("No IDs provided for deletion."));
+          }
+
+          // Construct a dynamic query with placeholders
+          const placeholders = ids.map(() => "?").join(", ");
+          const query = `DELETE FROM MaintenanceRequest WHERE ID IN (${placeholders})`;
+
+          db.run(query, ids, function (err) {
+            if (err) {
+              reject(err);
+            } else if (this.changes === 0) {
+              resolve(`No maintenance requests found for the given IDs.`);
+            } else {
+              resolve(
+                `Successfully deleted ${this.changes} maintenance requests.`
+              );
+            }
+          });
+        });
+      },
+    },
+    // update maintenance request
+    updateMaintenanceRequest: {
+      type: MaintenanceRequestType,
+      args: {
+        id: { type: new GraphQLNonNull(GraphQLInt) },
+        Status: { type: GraphQLInt },
+        Emergency: { type: GraphQLInt },
+        Title: { type: GraphQLString },
+        Description: { type: GraphQLString },
+        Date: { type: GraphQLString },
+        IsResolved: { type: GraphQLBoolean },
+      },
+      resolve(
+        _,
+        { id, Status, Emergency, Title, Description, Date, IsResolved }
+      ) {
+        return new Promise((resolve, reject) => {
+          db.get(
+            "SELECT * FROM MaintenanceRequest WHERE ID = ?",
+            [id],
+            (err, row) => {
+              if (err) return reject(err);
+              if (!row) return resolve(null);
+
+              // Prepare the updated data, keeping old values if new ones are not provided
+              const updatedData = {
+                Status: Status !== undefined ? Status : row.Status,
+                Emergency: Emergency !== undefined ? Emergency : row.Emergency,
+                Title: Title !== undefined ? Title : row.Title,
+                Description:
+                  Description !== undefined ? Description : row.Description,
+                Date: Date !== undefined ? Date : row.Date,
+                IsResolved:
+                  IsResolved !== undefined ? IsResolved : row.IsResolved,
+              };
+
+              // Execute update query
+              db.run(
+                "UPDATE MaintenanceRequest SET Status = ?, Emergency = ?, Title = ?, Description = ?, Date = ?, IsResolved = ? WHERE ID = ?",
+                [
+                  updatedData.Status,
+                  updatedData.Emergency,
+                  updatedData.Title,
+                  updatedData.Description,
+                  updatedData.Date,
+                  updatedData.IsResolved,
+                  id,
+                ],
+                function (err) {
+                  if (err) return reject(err);
+                  resolve({
+                    ID: id,
+                    ...updatedData,
+                  });
+                }
+              );
             }
           );
         });
