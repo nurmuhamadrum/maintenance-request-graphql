@@ -5,7 +5,7 @@ const {
   GraphQLString,
   GraphQLList,
   GraphQLBoolean,
-  GraphQLNonNull
+  GraphQLNonNull,
 } = require("graphql");
 const db = require("./db");
 
@@ -104,21 +104,43 @@ const Mutation = new GraphQLObjectType({
         });
       },
     },
+    // update status
+    updateStatus: {
+      type: StatusType,
+      args: {
+        ID: { type: GraphQLInt },
+        NamaStatus: { type: GraphQLString },
+      },
+      resolve(_, { ID, NamaStatus }) {
+        return new Promise((resolve, reject) => {
+          db.run(
+            "UPDATE Status SET NamaStatus = ? WHERE ID = ?",
+            [NamaStatus, ID],
+            function (err) {
+              if (err) reject(err);
+              resolve({ ID, NamaStatus });
+            }
+          );
+        });
+      },
+    },
+
     // delete status
-    deleteEmergency: {
+    deleteStatus: {
       type: GraphQLString,
       args: {
-        id: { type: GraphQLInt },
+        ID: { type: GraphQLInt },
       },
-      resolve(_, { id }) {
+      resolve(_, { ID }) {
         return new Promise((resolve, reject) => {
-          db.run("DELETE FROM Status WHERE ID = ?", [id], function (err) {
+          db.run("DELETE FROM Status WHERE ID = ?", [ID], function (err) {
             if (err) reject(err);
-            resolve(`Status with ID ${id} deleted successfully.`);
+            resolve(`Status with ID ${ID} deleted successfully`);
           });
         });
       },
     },
+
     // add emergency
     addEmergency: {
       type: EmergencyType,
@@ -138,6 +160,28 @@ const Mutation = new GraphQLObjectType({
         });
       },
     },
+
+    // update emergency
+    updateEmergency: {
+      type: EmergencyType,
+      args: {
+        ID: { type: GraphQLInt },
+        EmergencyName: { type: GraphQLString },
+      },
+      resolve(_, { ID, EmergencyName }) {
+        return new Promise((resolve, reject) => {
+          db.run(
+            "UPDATE Emergency SET EmergencyName = ? WHERE ID = ?",
+            [EmergencyName, ID],
+            function (err) {
+              if (err) reject(err);
+              resolve({ ID, EmergencyName });
+            }
+          );
+        });
+      },
+    },
+
     // delete emergency
     deleteEmergency: {
       type: GraphQLString, // Assuming you want to return a confirmation message or ID of the deleted emergency
@@ -153,6 +197,7 @@ const Mutation = new GraphQLObjectType({
         });
       },
     },
+
     // add maintenance request
     addMaintenanceRequest: {
       type: MaintenanceRequestType,
@@ -185,6 +230,7 @@ const Mutation = new GraphQLObjectType({
         });
       },
     },
+
     // delete maintenance request by id
     deleteMaintenanceRequest: {
       type: GraphQLString,
@@ -211,6 +257,7 @@ const Mutation = new GraphQLObjectType({
         });
       },
     },
+    
     // delete multiple maintenance id
     deleteMultipleMaintenanceRequests: {
       type: GraphQLString, // Returns a success message
@@ -241,6 +288,7 @@ const Mutation = new GraphQLObjectType({
         });
       },
     },
+    
     // update maintenance request
     updateMaintenanceRequest: {
       type: MaintenanceRequestType,
